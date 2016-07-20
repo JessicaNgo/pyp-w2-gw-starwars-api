@@ -1,7 +1,7 @@
 from starwars_api.client import SWAPIClient
 from starwars_api.exceptions import SWAPIClientError
 #I am adding the line below
-
+# import pprint
 
 api_client = SWAPIClient()
 
@@ -19,7 +19,7 @@ class BaseModel(object):
         
         
         
-
+    
     @classmethod
     def get(cls, resource_id = 1):
         """
@@ -33,7 +33,7 @@ class BaseModel(object):
         retrieved_data = getattr(api_client, method)(people_id = resource_id)
         retrieved_data = BaseModel(retrieved_data)
 
-        print retrieved_data
+        #print retrieved_data
         return retrieved_data #returns loaded python object from json file
         
 
@@ -46,12 +46,11 @@ class BaseModel(object):
         """
         #call on base queryset...? instance an object
         modelqueryset = "{}QuerySet".format(cls.__name__)
-        
-        #want to execute PeopleQuerySet() - turn into iterable
-        
-        self = iter(eval(modelqueryset)()) #at this point the class of this is changed to PeopleQuerySet
-        self.oldclassname = cls.__name__
-        return self
+        temp = cls.__name__
+        #create a iterable by accessing method of (People/Film)QuerySet
+        iterable_qs = iter(eval(modelqueryset)()) 
+        iterable_qs.oldclassname = temp
+        return iterable_qs
 
         
         
@@ -80,24 +79,26 @@ class Films(BaseModel):
 class BaseQuerySet(object): #want next object
 
     def __init__(self):
-        #getattr(api_client, )
-        print "entered __init__ of Parent"
+        
         self.method = "get_{}".format(self.RESOURCE_NAME)
-        self.retrieved_data = getattr(api_client, self.method)()
+        self.counter = getattr(api_client, self.method)()['count']
         
+    def __iter__(self): 
         
-
-    def __iter__(self): #objects we want are a list of dictionaries inside a dictionary value with key 'results'
-        #initializing 
-        #print "entered __iter__"
-        
+        #initialize
         self.index = 0
         self.current_page = 1
         
+        #look at next page
+        self.nextpage = getattr(api_client, self.method)(page = self.current_page)['next']
         
-        #loading in one page at a time, initialize first page, page length
+        #first page of results
         self.curr_page_results = getattr(api_client, self.method)(page = self.current_page)['results']
+        
+        #number of results on first page
         self.pagelength = len(self.curr_page_results)
+        
+        self.objects = []
         
         return self
         
@@ -106,31 +107,32 @@ class BaseQuerySet(object): #want next object
         Must handle requests to next pages in SWAPI when objects in the current
         page were all consumed.
         """
-        self.objects = []
+        
         #check if next page exists
-        while self.next:
-                
+        while len(self.objects)!= self.counter:  
             #iterate through results on page, create object for each
             while self.index < self.pagelength:
-                
+                #     pprint.pprint(self.curr_page_results)
                 created_object = eval(self.oldclassname)(self.curr_page_results[self.index])
                 self.index +=1
                 self.objects.append(created_object)
                 return created_object
-                
+          
             #go to next page
             self.current_page += 1
             
-            #load next page results
-            self.curr_page_results = getattr(api_client, self.method)(page = self.current_page)
+            #update the next page variable
+            self.nextpage = getattr(api_client, self.method)(page = self.current_page)['next'] #you are last page, so next page = null
             
-            #find next page length
+            #load new page results
+            self.curr_page_results = getattr(api_client, self.method)(page = self.current_page)['results']
+            
+            #find new page length
             self.pagelength = len(self.curr_page_results)
             
             #reset index
             self.index = 0
-            
-        
+
         raise StopIteration
         
     next = __next__
@@ -141,12 +143,12 @@ class BaseQuerySet(object): #want next object
         If the counter is not persisted as a QuerySet instance attr,
         a new request is performed to the API in order to get it.
         """
-        # if self.count:
-        #     return self.count #'count' key contains total entries
-        # else:
-        method = "get_{}".format(self.RESOURCE_NAME)
-        retrieved_data = getattr(api_client, method)()
-        return retrieved_data["count"]
+        if self.counter:
+            return self.counter #'count' key contains total entries
+        else:
+            method = "get_{}".format(self.RESOURCE_NAME)
+            retrieved_data = getattr(api_client, method)()
+            return retrieved_data["count"]
             
 
 
