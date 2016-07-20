@@ -13,22 +13,15 @@ class BaseModel(object):
         Dynamically assign all attributes in `json_data` as instance
         attributes of the Model.
         """
-        print json_data
+        
         for key, value in json_data.iteritems():
             setattr(self, key, value)
-            
-            
         
         
-        #so if json_data = {'people': 'luke'}, this allows for BaseModel.people = 'luke'?
-        #Maybe I am not understanding then; are we creating a dictionary?
-        #In my mind, the two ways to approach this are to iterate through everything
-        # and pull what we need or make a way to reference back to the AGI every time
-        # my impression was the latter, but I make more than my share of mistakes
-        # i have absolutely no idea lol
+        
 
     @classmethod
-    def get(cls, resource_id):
+    def get(cls, resource_id = 1):
         """
         Returns an object of current Model requesting data to SWAPI using
         the api_client.
@@ -39,8 +32,7 @@ class BaseModel(object):
         method = "get_{}".format(cls.RESOURCE_NAME)
         retrieved_data = getattr(api_client, method)(people_id = resource_id)
         retrieved_data = BaseModel(retrieved_data)
-        # for key, value in retrieved_data:
-        #     setattr(self, key, value)
+
         print retrieved_data
         return retrieved_data #returns loaded python object from json file
         
@@ -54,7 +46,14 @@ class BaseModel(object):
         """
         #call on base queryset...? instance an object
         modelqueryset = "{}QuerySet".format(cls.__name__)
-        eval(modelqueryset)
+        
+        #want to execute PeopleQuerySet() - turn into iterable
+        
+        self = iter(eval(modelqueryset)()) #at this point the class of this is changed to PeopleQuerySet
+        self.oldclassname = cls.__name__
+        return self
+
+        
         
 
 class People(BaseModel):
@@ -78,50 +77,61 @@ class Films(BaseModel):
         return 'Film: {0}'.format(self.title)
 
 
-class BaseQuerySet(object):
+class BaseQuerySet(object): #want next object
 
     def __init__(self):
+        #getattr(api_client, )
+        print "entered __init__ of Parent"
+        self.method = "get_{}".format(self.RESOURCE_NAME)
+        self.retrieved_data = getattr(api_client, self.method)()
         
-        pass
-    
+        
 
-    def __iter__(self):
+    def __iter__(self): #objects we want are a list of dictionaries inside a dictionary value with key 'results'
         #initializing 
+        #print "entered __iter__"
         
         self.index = 0
         self.current_page = 1
-        #self.total_page = 1
-        #loading in one page at a time, initialize first page
-        self.curr_page_results = getattr(api_client, method)(page = current_page)
-    
+        
+        
+        #loading in one page at a time, initialize first page, page length
+        self.curr_page_results = getattr(api_client, self.method)(page = self.current_page)['results']
+        self.pagelength = len(self.curr_page_results)
+        
         return self
-
+        
     def __next__(self):
         """
         Must handle requests to next pages in SWAPI when objects in the current
         page were all consumed.
         """
-        method = "get_{}".format(self.RESOURCE_NAME)
-        
-        #check pagelength
-        self.pagelength = len(self.results)
-        
-        #iterate through results on page
-        while self.index <= self.pagelength:
-            yield self.results[self.index]
-            self.index +=1
+        self.objects = []
+        #check if next page exists
+        while self.next:
+                
+            #iterate through results on page, create object for each
+            while self.index < self.pagelength:
+                
+                created_object = eval(self.oldclassname)(self.curr_page_results[self.index])
+                self.index +=1
+                self.objects.append(created_object)
+                return created_object
+                
+            #go to next page
+            self.current_page += 1
             
-        #go to next page
-        self.current_page += 1
-        
-        #check for next page exists, if it does, reset index & load next page
-        if getattr(api_client, method)(page = self.current_page):
-            self.curr_page_results = getattr(api_client, method)(page = current_page)
+            #load next page results
+            self.curr_page_results = getattr(api_client, self.method)(page = self.current_page)
+            
+            #find next page length
+            self.pagelength = len(self.curr_page_results)
+            
+            #reset index
             self.index = 0
-            #self.total_page += 1
-            #theoretically can enter while loop again?
-        else: #page does not exist
-            raise StopIteration
+            
+        
+        raise StopIteration
         
     next = __next__
 
@@ -131,14 +141,13 @@ class BaseQuerySet(object):
         If the counter is not persisted as a QuerySet instance attr,
         a new request is performed to the API in order to get it.
         """
-        if self.count:
-            return self.count #'count' key contains total entries
-        else:
-            method = "get_{}".format(self.RESOURCE_NAME)
-            retrieved_data = getattr(self, method)()
-            return retrieved_data["count"]
+        # if self.count:
+        #     return self.count #'count' key contains total entries
+        # else:
+        method = "get_{}".format(self.RESOURCE_NAME)
+        retrieved_data = getattr(api_client, method)()
+        return retrieved_data["count"]
             
-            #manually count
 
 
 class PeopleQuerySet(BaseQuerySet):

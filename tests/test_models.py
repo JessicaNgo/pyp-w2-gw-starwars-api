@@ -33,10 +33,14 @@ class PeopleQuerySetTestCase(BaseStarWarsAPITestCase):
     @responses.activate
     def test_people_qs_next(self):
         qs = People.all()
+        print isinstance(qs, PeopleQuerySet)
         obj = qs.next()
         self.assertTrue(isinstance(obj, People))
         self.assertEqual(obj.name, 'Luke Skywalker')
-
+        obj = qs.next()
+        self.assertTrue(isinstance(obj, People))
+        self.assertEqual(obj.name, 'C-3PO')
+        
     @responses.activate
     def test_people_qs_iterable(self):
         qs = People.all()
