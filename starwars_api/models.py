@@ -14,7 +14,7 @@ class BaseModel(object):
         attributes of the Model.
         """
         
-        for key, value in json_data.iteritems():
+        for key, value in json_data.items():
             setattr(self, key, value)
         
         
